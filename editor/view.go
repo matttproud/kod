@@ -1,7 +1,6 @@
 package editor
 
 import (
-	"os"
 	"strconv"
 
 	"github.com/gdamore/tcell"
@@ -26,6 +25,7 @@ type View struct {
 	gutter *Viewport
 	xi     *rpc.Connection
 	ViewID string
+	close  func()
 }
 
 var tmpStyle tcell.Style
@@ -41,8 +41,8 @@ func ralign(str string, width int) string {
 	return res
 }
 
-func NewView(path string, vp *Viewport, xi *rpc.Connection) (*View, error) {
-	view := &View{}
+func NewView(path string, vp *Viewport, xi *rpc.Connection, close func()) (*View, error) {
+	view := &View{close: close}
 	view.view = NewViewport(vp, 3, 0)
 	view.gutter = NewViewport(vp, 0, 0)
 	//view.editview = NewViewport(view.view, 3, 0)
@@ -167,7 +167,8 @@ func (v *View) HandleEvent(ev tcell.Event) {
 					v.MoveWordRight()
 				case tcell.KeyCtrlQ:
 					// TODO: Send CloseView to xi and cleanup tcell
-					os.Exit(0)
+					v.close()
+					return
 				case tcell.KeyCtrlS:
 					v.Save()
 				case tcell.KeyCtrlU:

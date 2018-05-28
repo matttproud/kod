@@ -130,8 +130,6 @@ func (e *Editor) Start() {
 	e.initScreen()
 	defer e.screen.Fini()
 
-	quit := make(chan bool, 1)
-
 	go func() {
 		for {
 			if e.screen != nil {
@@ -150,7 +148,11 @@ func (e *Editor) Start() {
 	path := os.Args[1]
 	vp := NewViewport(e.screen, 0, 0)
 	vp.FillParent()
-	view, _ := NewView(path, vp, e.xi)
+	view, _ := NewView(path, vp, e.xi, func() {
+		e.screen.Fini()
+		log.Println("bye")
+		os.Exit(0)
+	})
 	e.Views[view.ID] = view
 	e.curViewID = view.ID
 
@@ -164,19 +166,25 @@ func (e *Editor) Start() {
 			curView.Draw()
 			e.screen.Show()
 		} else {
-			quit <- true
+			e.updates <- func() {
+				e.screen.Fini()
+				log.Println("bye")
+				os.Exit(0)
+			}
 		}
-
-		var event tcell.Event
 		select {
-		case event = <-e.events:
 		case update := <-e.updates:
 			update()
+			continue
+		default:
+		}
+		var event tcell.Event
+		select {
+		case update := <-e.updates:
+			update()
+			continue
+		case event = <-e.events:
 		case <-e.redraws:
-		case <-quit:
-			e.screen.Fini()
-			log.Println("bye")
-			os.Exit(0)
 		}
 
 		for event != nil {
@@ -184,7 +192,11 @@ func (e *Editor) Start() {
 			case *tcell.EventKey:
 				switch ev.Key() {
 				case tcell.KeyF1:
-					close(quit)
+					e.updates <- func() {
+						e.screen.Fini()
+						log.Println("bye")
+						os.Exit(0)
+					}
 				}
 			case *tcell.EventResize:
 				e.screen.Sync()
@@ -201,3 +213,4 @@ func (e *Editor) Start() {
 		}
 	}
 }
+
